@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>화학맛.ZIP 십자말풀이 (2022 개정 교육과정)</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --bg: #f8f9fa; --border: #ced4da; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Pretendard', sans-serif; margin: 0; background: var(--bg); height: 100vh; display: flex; flex-direction: column; }
+        
+        /* 상단 헤더 */
+        header { background: var(--primary); color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h1 { margin: 0; font-size: 1.4rem; }
+        .header-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 0.9rem; }
+        .header-btn:hover { background: rgba(255,255,255,0.3); }
+
+        /* 메인 레이아웃 */
+        main { flex: 1; display: flex; overflow: hidden; position: relative; }
+        
+        /* 1. 선생님용 설정 패널 (기본 숨김) */
+        #maker-panel {
+            position: absolute; top: 0; left: 0; width: 350px; height: 100%; 
+            background: white; border-right: 2px solid var(--accent); padding: 20px; 
+            z-index: 100; transform: translateX(-100%); transition: transform 0.3s ease;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 10px;
+        }
+        #maker-panel.open { transform: translateX(0); }
+        textarea { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 5px; resize: none; font-family: monospace; }
+        .panel-title { font-weight: bold; color: var(--primary); margin-bottom: 5px; display: flex; justify-content: space-between; }
+        .close-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; }
+
+        /* 2. 학생용 문제 풀이 영역 */
+        #student-view { flex: 1; display: flex; padding: 20px; gap: 20px; justify-content: center; overflow: hidden; }
+        
+        /* 좌측: 퍼즐 그리드 */
+        #grid-container { 
+            flex: 2; display: flex; justify-content: center; align-items: flex-start; 
+            overflow: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        #puzzle-board { 
+            display: grid; gap: 1px; background: #333; border: 2px solid #333; 
+            /* 그리드 크기는 JS에서 동적 설정 */
+        }
+        .cell { 
+            width: 38px; height: 38px; background: white; position: relative; 
+            display: flex; justify-content: center; align-items: center;
+        }
+        .cell.black { background: #222; }
+        .cell input { 
+            width: 100%; height: 100%; border: none; text-align: center; 
+            font-size: 18px; font-weight: bold; outline: none; background: transparent; 
+            text-transform: uppercase; color: #333;
+        }
+        .cell input:focus { background: #e3f2fd; }
+        .cell-num { position: absolute; top: 1px; left: 2px; font-size: 10px; color: #666; pointer-events: none; }
+        
+        /* 정답 확인 색상 */
+        .correct { background-color: #d4edda !important; color: #155724; }
+        .wrong { background-color: #f8d7da !important; color: #721c24; }
+
+        /* 우측: 힌트 목록 */
+        #clues-container { 
+            flex: 1; min-width: 300px; max-width: 400px; 
+            display: flex; flex-direction: column; gap: 15px; overflow-y: auto; 
+            padding-right: 5px;
+        }
+        .clue-box { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .clue-box h3 { margin: 0 0 10px 0; font-size: 1.1rem; color: var(--primary); border-bottom: 2px solid var(--accent); padding-bottom: 5px; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { padding: 6px 8px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 0.95rem; line-height: 1.4; }
+        li:hover { background: #f1f3f5; color: var(--accent); font-weight: bold; }
+        li span.num { font-weight: bold; color: var(--accent); margin-right: 5px; }
+
+        /* 하단 컨트롤 바 */
+        .controls { margin-top: auto; display: flex; gap: 10px; }
+        .btn { padding: 12px; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; flex: 1; }
+        .btn-blue { background: var(--accent); }
+        .btn-green { background: #27ae60; }
+        .btn-red { background: #e74c3c; }
+        
+        @media (max-width: 900px) {
+            #student-view { flex-direction: column; overflow-y: auto; }
+            #grid-container { flex: none; height: auto; min-height: 300px; }
+            #clues-container { flex: none; width: 100%; max-width: none; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🧪 화학맛.ZIP: 우리 주변의 화학 평형</h1>
+    <div>
+        <button class="header-btn" onclick="toggleMaker()">⚙️ 문제 만들기 (선생님용)</button>
+    </div>
+</header>
+
+<main>
+    <section id="maker-panel">
+        <div class="panel-title">
+            단어 및 힌트 입력
+            <button class="close-btn" onclick="toggleMaker()">×</button>
+        </div>
+        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">형식: 단어|힌트 (한 줄에 하나씩)</div>
+        <textarea id="word-input">화학평형|정반응과 역반응 속도가 같아 겉보기에 변화가 없는 상태
+암모니아|비료의 원료로 질소와 수소가 반응하여 생성됨
+수득률|화학 반응에서 이론적 생성량에 대한 실제 생성량의 비율
+헤모글로빈|혈액 속에서 산소를 운반하는 붉은색 단백질
+안토시아닌|pH에 따라 구조가 변하여 꽃의 색을 변화시키는 색소
+르샤틀리에|평형 상태의 계에 변화를 주면 그 변화를 상쇄하는 쪽으로 이동한다는 원리
+탄산음료|고압 조건에서 이산화탄소를 물에 녹여 만듦
+에틸렌|흡열 반응을 이용하여 고온에서 대량 생산하는 물질
+과호흡|여름철 닭이 체온 조절을 위해 이산화탄소를 과도하게 배출하는 현상
+정반응|화학 반응식에서 오른쪽으로 진행되는 반응</textarea>
+        <div class="controls">
+            <button class="btn btn-blue" onclick="generatePuzzle()">🔄 퍼즐 생성하기</button>
+        </div>
+    </section>
+
+    <section id="student-view">
+        <div id="grid-container">
+            <div id="puzzle-board"></div>
+        </div>
+        
+        <div id="clues-container">
+            <div class="clue-box">
+                <h3>가로 열쇠 ➡</h3>
+                <ul id="across-list"></ul>
+            </div>
+            <div class="clue-box">
+                <h3>세로 열쇠 ⬇</h3>
+                <ul id="down-list"></ul>
+            </div>
+            <div class="controls" style="margin-top: 20px;">
+                <button class="btn btn-green" onclick="checkAnswers()">✅ 정답 확인</button>
+                <button class="btn btn-red" onclick="resetInputs()">지우기</button>
+            </div>
+        </div>
+    </section>
+</main>
+
+<script>
+    // 1. 판 크기를 16에서 20으로 늘렸습니다 (공간 확보)
+    let gridSize = 20; 
+    let grid = [];     
+    let placedWords = []; 
+
+    window.onload = function() {
+        generatePuzzle();
+    };
+
+    function toggleMaker() {
+        document.getElementById('maker-panel').classList.toggle('open');
+    }
+
+    function generatePuzzle() {
+        const input = document.getElementById('word-input').value.trim();
+        const lines = input.split('\n').filter(l => l.includes('|'));
+        
+        let words = lines.map(line => {
+            const [w, c] = line.split('|');
+            return { word: w.trim(), clue: c.trim(), len: w.trim().length };
+        }).sort((a, b) => b.len - a.len); // 긴 단어 우선 정렬
+
+        if (words.length === 0) return alert("단어를 입력해주세요.");
+
+        // 격자 초기화
+        grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(null));
+        placedWords = [];
+        let unplaced = [...words];
+
+        // 첫 번째 단어 중앙 배치
+        const first = unplaced.shift();
+        placeRandomly(first, true); // true = 중앙 강제
+
+        // 나머지 단어 배치 루프
+        let maxRetries = 100; // 무한루프 방지
+        while (unplaced.length > 0 && maxRetries > 0) {
+            let placedThisRound = false;
+            
+            // 1단계: 기존 단어와 교차(겹치기) 시도
+            for (let i = 0; i < unplaced.length; i++) {
+                const candidate = unplaced[i];
+                const bestPos = findBestPosition(candidate);
+                
+                if (bestPos) {
+                    placeOnGrid(candidate, bestPos.r, bestPos.c, bestPos.dir);
+                    unplaced.splice(i, 1);
+                    placedThisRound = true;
+                    i--; 
+                }
+            }
+
+            // 2단계: 교차할 곳이 없으면 빈 공간에라도 배치 (이 기능 추가됨!)
+            if (!placedThisRound && unplaced.length > 0) {
+                const forcedCandidate = unplaced[0]; // 가장 긴 남은 단어 선택
+                if (placeRandomly(forcedCandidate, false)) {
+                    unplaced.shift();
+                    placedThisRound = true;
+                } else {
+                    // 배치 실패 시 맨 뒤로 보내서 나중에 다시 시도
+                    unplaced.push(unplaced.shift());
+                    maxRetries--;
+                }
+            }
+            
+            // 더 이상 진행이 안되면 루프 종료 방지용 카운트 차감
+            if(!placedThisRound) maxRetries--;
+        }
+
+        renderBoard();
+        renderClues();
+        
+        // 결과 알림
+        if (document.getElementById('maker-panel').classList.contains('open')) {
+            const successRate = Math.floor((placedWords.length / lines.length) * 100);
+            alert(`결과: 총 ${lines.length}개 중 ${placedWords.length}개 단어 배치 완료! (${successRate}%)`);
+        }
+    }
+
+    // 빈 공간 찾아서 배치하는 함수 (새로 추가됨)
+    function placeRandomly(wordObj, isCenter) {
+        let attempts = 0;
+        const directions = ['H', 'V'];
+        
+        while (attempts < 200) { // 200번 시도
+            const dir = directions[Math.floor(Math.random() * 2)];
+            let r, c;
+
+            if (isCenter) {
+                r = Math.floor(gridSize / 2);
+                c = Math.floor((gridSize - wordObj.len) / 2);
+                attempts = 200; // 한 번만 시도하고 종료
+            } else {
+                r = Math.floor(Math.random() * gridSize);
+                c = Math.floor(Math.random() * gridSize);
+            }
+
+            if (canPlace(wordObj.word, r, c, dir)) {
+                placeOnGrid(wordObj, r, c, dir);
+                return true;
+            }
+            attempts++;
+        }
+        return false;
+    }
+
+    // 교차점 찾기 (기존 로직 유지)
+    function findBestPosition(wordObj) {
+        const word = wordObj.word;
+        for (let pw of placedWords) {
+            for (let i = 0; i < pw.word.length; i++) {
+                const charOnBoard = pw.word[i];
+                const rOnBoard = pw.dir === 'H' ? pw.r : pw.r + i;
+                const cOnBoard = pw.dir === 'H' ? pw.c + i : pw.c;
+
+                for (let j = 0; j < word.length; j++) {
+                    if (word[j] === charOnBoard) {
+                        const tryDir = pw.dir === 'H' ? 'V' : 'H';
+                        const startR = tryDir === 'V' ? rOnBoard - j : rOnBoard;
+                        const startC = tryDir === 'H' ? cOnBoard - j : cOnBoard;
+
+                        if (canPlace(word, startR, startC, tryDir)) {
+                            return { r: startR, c: startC, dir: tryDir };
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    function canPlace(word, r, c, dir) {
+        if (r < 0 || c < 0) return false;
+        if (dir === 'H' && c + word.length > gridSize) return false;
+        if (dir === 'V' && r + word.length > gridSize) return false;
+
+        for (let i = 0; i < word.length; i++) {
+            const curR = dir === 'V' ? r + i : r;
+            const curC = dir === 'H' ? c + i : c;
+            const cell = grid[curR][curC];
+
+            if (cell !== null && cell !== word[i]) return false;
+            
+            // 교차점이 아닐 때 인접 체크 (글자가 붙어버리는 것 방지)
+            if (cell === null) {
+                if (hasNeighbor(curR, curC, dir)) return false;
+            }
+        }
+        
+        // 앞뒤가 막혀있는지 체크
+        const beforeR = dir === 'V' ? r - 1 : r;
+        const beforeC = dir === 'H' ? c - 1 : c;
+        const afterR = dir === 'V' ? r + word.length : r;
+        const afterC = dir === 'H' ? c + word.length : c;
+
+        if (isValid(beforeR, beforeC) && grid[beforeR][beforeC] !== null) return false;
+        if (isValid(afterR, afterC) && grid[afterR][afterC] !== null) return false;
+
+        return true;
+    }
+
+    function hasNeighbor(r, c, currentDir) {
+        const checks = currentDir === 'H' ? [[-1, 0], [1, 0]] : [[0, -1], [0, 1]];
+        for (let [dr, dc] of checks) {
+            const nr = r + dr, nc = c + dc;
+            if (isValid(nr, nc) && grid[nr][nc] !== null) return true;
+        }
+        return false;
+    }
+
+    function isValid(r, c) {
+        return r >= 0 && r < gridSize && c >= 0 && c < gridSize;
+    }
+
+    function placeOnGrid(wordObj, r, c, dir) {
+        for (let i = 0; i < wordObj.word.length; i++) {
+            const curR = dir === 'V' ? r + i : r;
+            const curC = dir === 'H' ? c + i : c;
+            grid[curR][curC] = wordObj.word[i];
+        }
+        placedWords.push({ ...wordObj, r, c, dir });
+    }
+
+    function renderBoard() {
+        const board = document.getElementById('puzzle-board');
+        board.style.gridTemplateColumns = `repeat(${gridSize}, 38px)`; // 셀 크기 고정
+        board.innerHTML = '';
+
+        let numberMap = {};
+        let numCounter = 1;
+        
+        placedWords.sort((a,b) => (a.r*gridSize + a.c) - (b.r*gridSize + b.c));
+        placedWords.forEach(pw => {
+            const key = `${pw.r},${pw.c}`;
+            if (!numberMap[key]) numberMap[key] = numCounter++;
+            pw.num = numberMap[key];
+        });
+
+        for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+                const cellVal = grid[r][c];
+                const div = document.createElement('div');
+                div.className = 'cell' + (cellVal ? '' : ' black');
+                
+                if (cellVal) {
+                    const input = document.createElement('input');
+                    input.maxLength = 1;
+                    input.dataset.answer = cellVal;
+                    input.id = `input-${r}-${c}`;
+                    
+                    if (numberMap[`${r},${c}`]) {
+                        const numSpan = document.createElement('span');
+                        numSpan.className = 'cell-num';
+                        numSpan.innerText = numberMap[`${r},${c}`];
+                        div.appendChild(numSpan);
+                    }
+                    div.appendChild(input);
+                }
+                board.appendChild(div);
+            }
+        }
+    }
+
+    function renderClues() {
+        const acrossList = document.getElementById('across-list');
+        const downList = document.getElementById('down-list');
+        acrossList.innerHTML = '';
+        downList.innerHTML = '';
+
+        placedWords.sort((a, b) => a.num - b.num);
+
+        placedWords.forEach(pw => {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="num">${pw.num}.</span> ${pw.clue} (${pw.word.length}글자)`;
+            li.onclick = () => focusWord(pw);
+            
+            if (pw.dir === 'H') acrossList.appendChild(li);
+            else downList.appendChild(li);
+        });
+    }
+
+    function focusWord(pw) {
+        const el = document.getElementById(`input-${pw.r}-${pw.c}`);
+        if (el) el.focus();
+    }
+
+    function checkAnswers() {
+        const inputs = document.querySelectorAll('.cell input');
+        let correctCount = 0;
+        let totalCount = inputs.length;
+
+        inputs.forEach(input => {
+            const userVal = input.value.trim().toUpperCase(); // 대소문자 무시
+            const answer = input.dataset.answer;
+            
+            if (userVal === answer) {
+                input.parentElement.classList.add('correct');
+                input.parentElement.classList.remove('wrong');
+                correctCount++;
+            } else {
+                if (userVal !== "") { 
+                    input.parentElement.classList.add('wrong');
+                    input.parentElement.classList.remove('correct');
+                }
+            }
+        });
+
+        if (correctCount === totalCount && totalCount > 0) {
+            alert("🎉 대단해요! 모든 문제를 맞혔습니다!");
+        }
+    }
+
+    function resetInputs() {
+        if(confirm("입력한 답을 모두 지우시겠습니까?")) {
+            const inputs = document.querySelectorAll('.cell input');
+            inputs.forEach(input => {
+                input.value = '';
+                input.parentElement.classList.remove('correct', 'wrong');
+            });
+        }
+    }
+</script>
+
+</body>
+</html>
