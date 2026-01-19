@@ -348,11 +348,14 @@
                 
                 if (cellVal) {
                     const input = document.createElement('input');
-                    input.maxLength = 1;
+                    input.maxLength = 2;
                     input.dataset.answer = cellVal;
                     input.id = `input-${r}-${c}`;
                     
                     input.onkeydown = (e) => handleMove(e, r, c);
+                    input.oninput = function() { handleInput(this, r, c); }; 
+
+                    input.onclick = function() { revealChar(this); };
 
                     input.onclick = function() { revealChar(this); };
 
@@ -441,16 +444,25 @@
                 else focusCell(r - 1, c);
             }
         }
-        
-        // 3. 글자 입력 시: 다음 칸으로 자동 이동
-        else if (e.key.length === 1 && e.key.match(/[a-zA-Z0-9ㄱ-ㅎㅏ-ㅣ가-힣]/)) {
-            setTimeout(() => {
-                if (document.getElementById(`input-${r}-${c+1}`)) focusCell(r, c + 1);
-                else focusCell(r + 1, c);
-            }, 10);
+    }
+    function handleInput(ele, r, c) {
+        // 1. 칸에 2글자 이상 쌓이면 (예: '화' + '학')
+        if (ele.value.length >= 2) {
+            const currentVal = ele.value[0];      // 앞글자 ('화') 남기기
+            const nextVal = ele.value.substring(1); // 뒷글자 ('학') 떼어내기
+
+            ele.value = currentVal; 
+
+            // 다음 칸으로 이동해서 뒷글자 넣어주기
+            const nextInput = document.getElementById(`input-${r}-${c+1}`);
+            if (nextInput) {
+                nextInput.focus();
+                nextInput.value = nextVal; 
+                // 연쇄 반응을 위해 다음 칸에서도 검사 (재귀 호출)
+                handleInput(nextInput, r, c + 1); 
+            }
         }
     }
-
     function focusCell(r, c) {
         const el = document.getElementById(`input-${r}-${c}`);
         if (el) el.focus();
@@ -471,6 +483,7 @@
 </body>
 
 </html>
+
 
 
 
