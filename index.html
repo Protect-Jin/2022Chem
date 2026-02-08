@@ -1,9 +1,18 @@
+완벽합니다! 마지막으로 학생들의 결과물을 간직하거나 과제로 제출할 수 있게 [이미지 저장] 기능을 추가해 볼게요.
+
+웹 화면을 그대로 캡처하기 위해서는 html2canvas라는 유명한 라이브러리를 사용하는 것이 가장 깔끔합니다. 이 기능을 추가하기 위해 코드 상단에 스크립트를 불러오는 줄을 넣고, 하단 컨트롤 바에 버튼을 배치했습니다.
+
+🧪 화학맛.ZIP 최종본 (이미지 내보내기 기능 추가)
+아래 코드를 복사해서 사용하시면 됩니다.
+
+HTML
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>화학맛.ZIP 십자말풀이</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --bg: #f8f9fa; --border: #ced4da; --success: #27ae60; }
         * { box-sizing: border-box; }
@@ -12,11 +21,13 @@
         header { background: var(--primary); color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
         h1 { margin: 0; font-size: 1.4rem; }
         
-        /* 진행률 표시바 (더 눈에 띄게 수정) */
         #progress-wrapper { background: #eee; padding: 5px 20px; display: flex; align-items: center; gap: 15px; border-bottom: 2px solid #ddd; }
         #progress-container { flex: 1; height: 15px; background: #ddd; border-radius: 10px; overflow: hidden; position: relative; }
         #progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #2ecc71, #27ae60); transition: width 0.3s ease; }
         #progress-text { font-weight: bold; color: var(--primary); min-width: 80px; text-align: right; }
+
+        /* 캡처 대상 영역 */
+        #capture-area { flex: 1; display: flex; overflow: hidden; background: var(--bg); }
 
         main { flex: 1; display: flex; overflow: hidden; position: relative; }
         
@@ -35,11 +46,7 @@
         
         .cell { width: 42px; height: 42px; background: white; position: relative; display: flex; justify-content: center; align-items: center; }
         .cell.black { background: #222; }
-        .cell input { 
-            width: 100%; height: 100%; border: none; text-align: center; 
-            font-size: 20px; font-weight: bold; outline: none; background: transparent; 
-        }
-        .cell input:focus { background: #e3f2fd; }
+        .cell input { width: 100%; height: 100%; border: none; text-align: center; font-size: 20px; font-weight: bold; outline: none; background: transparent; }
         .cell-num { position: absolute; top: 1px; left: 2px; font-size: 10px; color: #666; pointer-events: none; }
         
         .correct { background-color: #d4edda !important; }
@@ -51,13 +58,13 @@
         .clue-box h3 { margin: 0 0 10px 0; font-size: 1.1rem; color: var(--primary); border-bottom: 2px solid var(--accent); }
         ul { list-style: none; padding: 0; }
         li { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 0.95rem; }
-        li:hover { background: #f1f3f5; color: var(--accent); }
 
-        .controls { margin-top: auto; display: flex; gap: 10px; }
-        .btn { padding: 12px; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; flex: 1; }
+        .controls { margin-top: auto; display: flex; flex-wrap: wrap; gap: 10px; }
+        .btn { padding: 12px; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; flex: 1; min-width: 100px; }
         .btn-blue { background: var(--accent); }
         .btn-green { background: var(--success); }
         .btn-red { background: #e74c3c; }
+        .btn-purple { background: #9b59b6; } /* 내보내기 버튼 색상 */
 
         @media (max-width: 900px) { #student-view { flex-direction: column; overflow-y: auto; } }
     </style>
@@ -71,14 +78,11 @@
 
 <div id="progress-wrapper">
     <span>💡 전체 진행도:</span>
-    <div id="progress-container">
-        <div id="progress-bar"></div>
-    </div>
+    <div id="progress-container"><div id="progress-bar"></div></div>
     <div id="progress-text">0 / 0 (0%)</div>
 </div>
 
-<main>
-    <section id="maker-panel">
+<main id="capture-area"> <section id="maker-panel">
         <div style="font-weight:bold;">단어|힌트 입력</div>
         <textarea id="word-input">화학평형|화학 반응에서 정반응과 역반응 속도가 같아 겉보기에 변화가 없는 상태
 암모니아|질소와 수소가 반응하여 생성되는 비료의 원료
@@ -99,7 +103,8 @@
             <div class="clue-box"><h3>세로 열쇠 ⬇</h3><ul id="down-list"></ul></div>
             <div class="controls">
                 <button class="btn btn-green" onclick="checkAnswers()">✅ 정답 확인</button>
-                <button class="btn btn-red" onclick="resetInputs()">모두 지우기</button>
+                <button class="btn btn-purple" onclick="exportImage()">📸 이미지 저장</button>
+                <button class="btn btn-red" onclick="resetInputs()">지우기</button>
             </div>
         </div>
     </section>
@@ -109,12 +114,32 @@
     let gridSize = 18; 
     let grid = [];     
     let placedWords = []; 
-    let lastDirection = 'H'; // 사용자의 현재 입력 방향 추적
+    let lastDirection = 'H';
 
     window.onload = generatePuzzle;
 
     function toggleMaker() { document.getElementById('maker-panel').classList.toggle('open'); }
 
+    // [내보내기 기능] 이미지 저장 함수
+    function exportImage() {
+        const area = document.getElementById('capture-area');
+        const originalShadow = area.style.boxShadow;
+        area.style.boxShadow = "none"; // 캡처 시 그림자 제거
+
+        html2canvas(area, {
+            backgroundColor: "#f8f9fa",
+            scale: 2, // 고해상도 저장
+            useCORS: true
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `화학맛_ZIP_결과_${new Date().toLocaleDateString()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+            area.style.boxShadow = originalShadow;
+        });
+    }
+
+    // --- 기존 로직들 (한글 최적화 및 진행률 포함) ---
     function generatePuzzle() {
         const input = document.getElementById('word-input').value.trim();
         const lines = input.split('\n').filter(l => l.includes('|'));
@@ -122,23 +147,19 @@
             const [w, c] = line.split('|');
             return { word: w.trim(), clue: c.trim(), len: w.trim().length };
         }).sort((a, b) => b.len - a.len);
-
         grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(null));
         placedWords = [];
-        
         if (words.length > 0) placeRandomly(words.shift(), true);
         words.forEach(w => {
             const best = findBestPosition(w);
             if (best) placeOnGrid(w, best.r, best.c, best.dir);
             else placeRandomly(w, false);
         });
-
         renderBoard();
         renderClues();
         updateProgress();
     }
 
-    // 배치 관련 함수들 (기존 로직 유지)
     function placeRandomly(wordObj, isCenter) {
         for(let i=0; i<100; i++) {
             const dir = Math.random() > 0.5 ? 'H' : 'V';
@@ -188,13 +209,11 @@
         board.innerHTML = '';
         let numberMap = {};
         let numCounter = 1;
-        
         placedWords.sort((a,b) => (a.r*gridSize + a.c) - (b.r*gridSize + b.c));
         placedWords.forEach(pw => {
             if (!numberMap[`${pw.r},${pw.c}`]) numberMap[`${pw.r},${pw.c}`] = numCounter++;
             pw.num = numberMap[`${pw.r},${pw.c}`];
         });
-
         for (let r = 0; r < gridSize; r++) {
             for (let c = 0; c < gridSize; c++) {
                 const cellVal = grid[r][c];
@@ -204,14 +223,9 @@
                     const input = document.createElement('input');
                     input.dataset.answer = cellVal;
                     input.id = `input-${r}-${c}`;
-                    
-                    // [핵심 로직] 한글 입력 및 모든 칸 통일된 자동이동
                     input.oninput = (e) => handleInput(e, r, c);
                     input.onkeydown = (e) => handleKey(e, r, c);
-                    input.onclick = function() { 
-                        if(this.parentElement.classList.contains('wrong')) revealChar(this); 
-                    };
-
+                    input.onclick = function() { if(this.parentElement.classList.contains('wrong')) revealChar(this); };
                     if (numberMap[`${r},${c}`]) {
                         const num = document.createElement('span');
                         num.className = 'cell-num';
@@ -225,28 +239,20 @@
         }
     }
 
-    // [핵심] 한글 입력 대응 자동 이동 함수
     function handleInput(e, r, c) {
         const input = e.target;
         input.parentElement.classList.remove('wrong', 'correct');
-
-        // 글자가 2글자 이상이 되는 순간 (즉, 다음 글자를 치기 시작할 때)
         if (input.value.length >= 2) {
-            const currentVal = input.value[0];      // 첫 번째 글자(완성된 음절) 고정
-            const nextVal = input.value.substring(1); // 새로 치기 시작한 글자
-
+            const currentVal = input.value[0];
+            const nextVal = input.value.substring(1);
             input.value = currentVal; 
-
-            // 현재 방향(lastDirection)에 따라 다음 칸 찾기
             let nextR = r, nextC = c;
             if (lastDirection === 'H') nextC++;
             else nextR++;
-
             const nextInput = document.getElementById(`input-${nextR}-${nextC}`);
             if (nextInput) {
                 nextInput.focus();
                 nextInput.value = nextVal;
-                // 다음 칸에서도 동일한 로직이 작동하도록 재귀 호출
                 handleInput({ target: nextInput }, nextR, nextC);
             }
         }
@@ -270,27 +276,20 @@
         return false;
     }
 
-    // 진행률 업데이트 (시각적 효과 강화)
     function updateProgress() {
         const inputs = document.querySelectorAll('.cell input');
-        let filledCount = 0;
         let correctCount = 0;
-        
         inputs.forEach(input => {
-            if (input.value.trim() !== '') filledCount++;
             if (input.value === input.dataset.answer) correctCount++;
         });
-
         const total = inputs.length;
         const percent = total > 0 ? Math.floor((correctCount / total) * 100) : 0;
-        
         document.getElementById('progress-bar').style.width = percent + '%';
         document.getElementById('progress-text').innerText = `${correctCount} / ${total} (${percent}%)`;
     }
 
     function checkAnswers() {
-        const inputs = document.querySelectorAll('.cell input');
-        inputs.forEach(input => {
+        document.querySelectorAll('.cell input').forEach(input => {
             if (input.value === input.dataset.answer) input.parentElement.classList.add('correct');
             else if (input.value !== '') input.parentElement.classList.add('wrong');
         });
@@ -314,10 +313,7 @@
         placedWords.sort((a,b) => a.num - b.num).forEach(pw => {
             const li = document.createElement('li');
             li.innerHTML = `<b>${pw.num}.</b> ${pw.clue} (${pw.word.length}글자)`;
-            li.onclick = () => {
-                lastDirection = pw.dir; // 힌트 클릭 시 해당 단어 방향으로 자동 설정
-                focusCell(pw.r, pw.c);
-            };
+            li.onclick = () => { lastDirection = pw.dir; focusCell(pw.r, pw.c); };
             if (pw.dir === 'H') aList.appendChild(li);
             else dList.appendChild(li);
         });
